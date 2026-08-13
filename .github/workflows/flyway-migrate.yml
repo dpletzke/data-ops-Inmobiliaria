@@ -1,0 +1,151 @@
+# PR -> migra dev, push a main -> migra main. Así un error de diseño se
+# detecta en dev antes de llegar a producción.
+#
+
+name: Flyway Migrate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'sql_migrations/**'
+      - '.github/workflows/flyway-migrate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'sql_migrations/**'
+      - '.github/workflows/flyway-migrate.yml'
+  workflow_dispatch:
+
+# Evita dos migraciones simultáneas contra la misma base. No cancela la que
+# esté en curso: cortar una migración a mitad de camino es peor que esperar.
+concurrency:
+  group: flyway-${{ github.event_name == 'push' && 'main' || 'dev' }}
+  cancel-in-progress: false
+
+env:
+  FLYWAY_IMAGE: flyway/flyway:13.1.0-alpine
+  MIGRATIONS_DIR: sql_migrations
+
+jobs:
+  migrate:
+    name: Aplicar migraciones a Neon
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      # Default a dev: si se agrega un trigger nuevo sin pensarlo, no cae en
+      # producción por accidente.
+      - name: Determinar entorno y traducir la URI de Neon
+        id: conexion
+        env:
+          NEON_URI: ${{ github.event_name == 'push' && secrets.NEON_MAIN_DATABASE_URL || secrets.NEON_DEV_DATABASE_URL }}
+          ENTORNO: ${{ github.event_name == 'push' && 'main' || 'dev' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NEON_URI:-}" ]; then
+            echo "::error::No hay connection string para el entorno '${ENTORNO}'."
+            echo "Configura NEON_DEV_DATABASE_URL y NEON_MAIN_DATABASE_URL en"
+            echo "Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          # Neon : postgresql://usuario:clave@host/neondb?sslmode=require
+          # JDBC : jdbc:postgresql://host/neondb?sslmode=require + user + password
+          sin_protocolo="${NEON_URI#*://}"
+          credenciales="${sin_protocolo%%@*}"
+          servidor="${sin_protocolo#*@}"
+
+          usuario="${credenciales%%:*}"
+          clave="${credenciales#*:}"
+
+          host_y_db="${servidor%%\?*}"
+          host="${host_y_db%%/*}"
+          base="${host_y_db#*/}"
+
+          # Se descarta channel_binding=require: Neon lo agrega pero el driver
+          # JDBC de PostgreSQL no lo reconoce y rechaza la conexión.
+          jdbc="jdbc:postgresql://${host}/${base}?sslmode=require"
+
+          # GitHub enmascara el secreto completo, no fragmentos derivados de él.
+          echo "::add-mask::${clave}"
+
+          echo "jdbc=${jdbc}"       >> "$GITHUB_OUTPUT"
+          echo "usuario=${usuario}" >> "$GITHUB_OUTPUT"
+          echo "clave=${clave}"     >> "$GITHUB_OUTPUT"
+          echo "entorno=${ENTORNO}" >> "$GITHUB_OUTPUT"
+
+          echo "Entorno: ${ENTORNO} · destino: ${host}/${base}"
+
+      - name: Descargar la imagen de Flyway
+        run: docker pull "${FLYWAY_IMAGE}"
+
+      - name: Flyway info (estado previo)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/${MIGRATIONS_DIR}:/flyway/sql:ro" \
+            "${FLYWAY_IMAGE}" \
+            -url="${{ steps.conexion.outputs.jdbc }}" \
+            -user="${{ steps.conexion.outputs.usuario }}" \
+            -password="${{ steps.conexion.outputs.clave }}" \
+            -locations="filesystem:/flyway/sql" \
+            info
+
+      # Antes de migrate a propósito: si alguien editó una migración ya
+      # aplicada (checksum mismatch), corta acá sin tocar la base.
+      - name: Flyway validate
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/${MIGRATIONS_DIR}:/flyway/sql:ro" \
+            "${FLYWAY_IMAGE}" \
+            -url="${{ steps.conexion.outputs.jdbc }}" \
+            -user="${{ steps.conexion.outputs.usuario }}" \
+            -password="${{ steps.conexion.outputs.clave }}" \
+            -locations="filesystem:/flyway/sql" \
+            -validateMigrationNaming=true \
+            -ignoreMigrationPatterns='*:pending' \
+            validate
+
+      - name: Flyway migrate
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/${MIGRATIONS_DIR}:/flyway/sql:ro" \
+            "${FLYWAY_IMAGE}" \
+            -url="${{ steps.conexion.outputs.jdbc }}" \
+            -user="${{ steps.conexion.outputs.usuario }}" \
+            -password="${{ steps.conexion.outputs.clave }}" \
+            -locations="filesystem:/flyway/sql" \
+            -outOfOrder=false \
+            -cleanDisabled=true \
+            migrate
+
+      - name: Flyway info (estado final)
+        if: always()
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/${MIGRATIONS_DIR}:/flyway/sql:ro" \
+            "${FLYWAY_IMAGE}" \
+            -url="${{ steps.conexion.outputs.jdbc }}" \
+            -user="${{ steps.conexion.outputs.usuario }}" \
+            -password="${{ steps.conexion.outputs.clave }}" \
+            -locations="filesystem:/flyway/sql" \
+            info
+
+      - name: Resumen del run
+        if: always()
+        run: |
+          {
+            echo "## Flyway — resultado"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|---|---|"
+            echo "| Entorno | \`${{ steps.conexion.outputs.entorno }}\` |"
+            echo "| Imagen | \`${FLYWAY_IMAGE}\` |"
+            echo "| Migraciones | \`${MIGRATIONS_DIR}\` |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Estado | \`${{ job.status }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# Plantilla de configuración local de Flyway.
+#
+#   cp flyway.conf.example flyway.conf
+#
+# `flyway.conf` está en .gitignore y NUNCA debe commitearse: contiene la
+# contraseña de la base. En CI no se usa este archivo — el workflow arma la
+# conexión desde los GitHub Secrets.
+#
+# El connection string lo entrega el Neon Console así:
+#   postgresql://usuario:clave@host.neon.tech/neondb?sslmode=require
+# y hay que partirlo en los tres parámetros de abajo, porque Flyway usa JDBC.
+# Ojo: descarta `channel_binding=require` si Neon lo incluye — el driver JDBC
+# no lo reconoce y falla al conectar.
+# ---------------------------------------------------------------------------
+
+flyway.url=jdbc:postgresql://HOST.us-east-2.aws.neon.tech/neondb?sslmode=require
+flyway.user=USUARIO
+flyway.password=PASSWORD
+
+flyway.locations=filesystem:sql_migrations
+
+# `clean` borraría el esquema entero. Que ni exista la posibilidad.
+flyway.cleanDisabled=true
+
+# Un nombre de archivo mal formado debe fallar, no ignorarse en silencio.
+flyway.validateMigrationNaming=true
+
+# Prohibido aplicar una versión inferior a otra ya aplicada con éxito.
+flyway.outOfOrder=false

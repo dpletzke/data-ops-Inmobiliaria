@@ -1,0 +1,15 @@
+# Credenciales — NUNCA en el repositorio.
+flyway.conf
+.env
+.env.*
+!.env.example
+*.pem
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs y temporales
+*.log
+tmp/

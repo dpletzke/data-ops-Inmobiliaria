@@ -1,0 +1,109 @@
+[
+  {
+    "event_id": "MNT-EXT-2026-08-14-001",
+    "source_system": "portal_clientes",
+    "reported_at": "2026-08-14T09:17:00-05:00",
+    "id_inmueble": 12,
+    "direccion_ref": "Calle 32 # 17-22 Apto 112",
+    "id_contrato": 12,
+    "categoria": "plomeria",
+    "prioridad": "alta",
+    "estado_fuente": "abierta",
+    "descripcion": "Filtracion visible bajo el lavamanos del banio principal.",
+    "reportante": {
+      "tipo": "cliente",
+      "nombre": "Ivan Bejarano",
+      "documento": "CC80123456",
+      "telefono": "+57-300-555-0112",
+      "email": "cliente12@correo.co"
+    },
+    "danios": [
+      {
+        "area": "banio principal",
+        "detalle": "Goteo constante en sifon",
+        "severidad": 4
+      },
+      {
+        "area": "mueble lavamanos",
+        "detalle": "Humedad en madera inferior",
+        "severidad": 3
+      }
+    ],
+    "contactos_autorizados": [
+      {
+        "nombre": "Ivan Bejarano",
+        "telefono": "+57-300-555-0112",
+        "email": "cliente12@correo.co",
+        "ventana_preferida": "lunes a viernes 08:00-12:00"
+      }
+    ],
+    "historial_estados": [
+      {
+        "estado": "abierta",
+        "timestamp": "2026-08-14T09:17:00-05:00",
+        "actor": "portal_clientes"
+      }
+    ],
+    "adjuntos": [
+      {
+        "tipo": "foto",
+        "nombre_archivo": "mnt_20260814_001_01.jpg",
+        "url_relativa": "fotos/mnt_20260814_001_01.jpg"
+      }
+    ]
+  },
+  {
+    "event_id": "MNT-EXT-2026-08-14-002",
+    "source_system": "whatsapp_operaciones",
+    "reported_at": "2026-08-14T16:42:00-05:00",
+    "id_inmueble": 28,
+    "direccion_ref": "Calle 48 # 33-38 Apto 128",
+    "categoria": "electrica",
+    "prioridad": "media",
+    "estado_fuente": "asignada",
+    "descripcion": "Tomas de cocina sin energia desde la tarde.",
+    "reportante": {
+      "tipo": "cliente",
+      "nombre": "Nicolas Cuellar",
+      "telefono": "+57-301-555-0228",
+      "email": "cliente28@correo.co"
+    },
+    "empleado_asignado": {
+      "id_empleado": 11,
+      "nombre": "Wilson Ardila"
+    },
+    "danios": [
+      {
+        "area": "cocina",
+        "detalle": "Dos tomas electricas no funcionan",
+        "severidad": 3
+      }
+    ],
+    "contactos_autorizados": [
+      {
+        "nombre": "Nicolas Cuellar",
+        "telefono": "+57-301-555-0228",
+        "ventana_preferida": "sabado 09:00-11:00"
+      },
+      {
+        "nombre": "Adriana Amaya",
+        "telefono": "+57-302-555-0144",
+        "parentesco": "familiar",
+        "ventana_preferida": "viernes 18:00-20:00"
+      }
+    ],
+    "historial_estados": [
+      {
+        "estado": "abierta",
+        "timestamp": "2026-08-14T16:42:00-05:00",
+        "actor": "whatsapp_operaciones"
+      },
+      {
+        "estado": "asignada",
+        "timestamp": "2026-08-14T17:05:00-05:00",
+        "actor": "coordinacion_mantenimiento"
+      }
+    ],
+    "adjuntos": []
+  }
+]

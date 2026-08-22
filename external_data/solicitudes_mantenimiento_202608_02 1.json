@@ -1,0 +1,128 @@
+[
+  {
+    "event_id": "MNT-EXT-2026-08-21-001",
+    "source_system": "portal_propietarios",
+    "reported_at": "2026-08-21T10:05:00-05:00",
+    "id_inmueble": 42,
+    "direccion_ref": "Calle 62 # 7-52 Apto 142",
+    "categoria": "humedad",
+    "prioridad": "alta",
+    "estado_fuente": "abierta",
+    "descripcion": "Humedad recurrente en muro de habitacion despues de lluvias.",
+    "reportante": {
+      "tipo": "propietario",
+      "nombre": "Beatriz Arevalo",
+      "documento": "CC79005754",
+      "telefono": "+57-310-555-0042",
+      "email": "propietario42@correo.co"
+    },
+    "danios": [
+      {
+        "area": "habitacion principal",
+        "detalle": "Mancha de humedad de 80 cm aproximadamente",
+        "severidad": 5
+      },
+      {
+        "area": "closet",
+        "detalle": "Olor a humedad y pintura levantada",
+        "severidad": 4
+      }
+    ],
+    "lectura_medidor": {
+      "agua_m3": 312.7,
+      "registrada_at": "2026-08-21T10:02:00-05:00"
+    },
+    "contactos_autorizados": [
+      {
+        "nombre": "Beatriz Arevalo",
+        "telefono": "+57-310-555-0042",
+        "email": "propietario42@correo.co",
+        "ventana_preferida": "lunes 14:00-17:00"
+      }
+    ],
+    "historial_estados": [
+      {
+        "estado": "abierta",
+        "timestamp": "2026-08-21T10:05:00-05:00",
+        "actor": "portal_propietarios"
+      }
+    ],
+    "adjuntos": [
+      {
+        "tipo": "foto",
+        "nombre_archivo": "mnt_20260821_001_01.jpg",
+        "url_relativa": "fotos/mnt_20260821_001_01.jpg"
+      },
+      {
+        "tipo": "foto",
+        "nombre_archivo": "mnt_20260821_001_02.jpg",
+        "url_relativa": "fotos/mnt_20260821_001_02.jpg"
+      }
+    ]
+  },
+  {
+    "event_id": "MNT-EXT-2026-08-28-001",
+    "source_system": "call_center",
+    "reported_at": "2026-08-28T08:33:00-05:00",
+    "id_inmueble": 56,
+    "direccion_ref": "Calle 76 # 21-66 Apto 156",
+    "id_contrato": 56,
+    "categoria": "cerrajeria",
+    "prioridad": "media",
+    "estado_fuente": "asignada",
+    "descripcion": "Cerradura principal se atasca y la llave no gira con facilidad.",
+    "reportante": {
+      "tipo": "cliente",
+      "nombre": "Sergio Zapata",
+      "documento": "CC80234567",
+      "telefono": "+57-304-555-0156",
+      "email": "cliente56@correo.co"
+    },
+    "empleado_asignado": {
+      "id_empleado": 12,
+      "nombre": "Sandra Quintero"
+    },
+    "danios": [
+      {
+        "area": "puerta principal",
+        "detalle": "Cilindro de cerradura trabado",
+        "severidad": 3
+      }
+    ],
+    "cotizaciones": [
+      {
+        "proveedor": "Cerrajeria Norte",
+        "telefono": "+57-601-555-8891",
+        "valor_estimado": 180000,
+        "moneda": "COP"
+      },
+      {
+        "proveedor": "Llaves Express",
+        "telefono": "+57-601-555-7730",
+        "valor_estimado": 210000,
+        "moneda": "COP"
+      }
+    ],
+    "contactos_autorizados": [
+      {
+        "nombre": "Sergio Zapata",
+        "telefono": "+57-304-555-0156",
+        "email": "cliente56@correo.co",
+        "ventana_preferida": "viernes 13:00-15:00"
+      }
+    ],
+    "historial_estados": [
+      {
+        "estado": "abierta",
+        "timestamp": "2026-08-28T08:33:00-05:00",
+        "actor": "call_center"
+      },
+      {
+        "estado": "asignada",
+        "timestamp": "2026-08-28T09:10:00-05:00",
+        "actor": "coordinacion_mantenimiento"
+      }
+    ],
+    "adjuntos": []
+  }
+]

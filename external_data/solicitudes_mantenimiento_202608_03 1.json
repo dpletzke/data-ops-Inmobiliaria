@@ -1,0 +1,49 @@
+[
+  {
+    "event_id": "MNT-EXT-2026-08-28-002",
+    "source_system": "portal_clientes",
+    "reported_at": "2026-08-28T19:21:00-05:00",
+    "id_inmueble": 84,
+    "direccion_ref": "Calle 104 # 9-34 Apto 184",
+    "id_contrato": 84,
+    "categoria": "gasodomestico",
+    "prioridad": "critica",
+    "estado_fuente": "abierta",
+    "descripcion": "Calentador no enciende y se percibe olor a gas cerca del equipo.",
+    "reportante": {
+      "tipo": "cliente",
+      "nombre": "Ricardo Roldan",
+      "telefono": "+57-305-555-0184",
+      "email": "cliente24@correo.co"
+    },
+    "danios": [
+      {
+        "area": "zona de ropas",
+        "detalle": "Calentador apagado y olor a gas",
+        "severidad": 5
+      }
+    ],
+    "contactos_autorizados": [
+      {
+        "nombre": "Ricardo Roldan",
+        "telefono": "+57-305-555-0184",
+        "email": "cliente24@correo.co",
+        "ventana_preferida": "atencion inmediata"
+      }
+    ],
+    "historial_estados": [
+      {
+        "estado": "abierta",
+        "timestamp": "2026-08-28T19:21:00-05:00",
+        "actor": "portal_clientes"
+      }
+    ],
+    "adjuntos": [
+      {
+        "tipo": "audio",
+        "nombre_archivo": "mnt_20260828_002_01.m4a",
+        "url_relativa": "audios/mnt_20260828_002_01.m4a"
+      }
+    ]
+  }
+]

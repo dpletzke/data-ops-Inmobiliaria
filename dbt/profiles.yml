@@ -1,11 +1,6 @@
-# Perfil de conexión de dbt. Todos los valores se leen de variables de entorno con
-# env_var() — NO hay ninguna credencial en texto plano en este archivo, por eso es
-# seguro versionarlo (lo necesita GitHub Actions para correr `dbt build`).
-#
-# Localmente:
-#   set -a && source .env && set +a
-#   uv run dbt deps  --profiles-dir .
-#   uv run dbt build --profiles-dir .
+# Plantilla de profiles.yml. Idéntica al profiles.yml versionado — se conserva como
+# referencia. Ningún valor es una credencial: todo se resuelve con env_var() en tiempo
+# de ejecución, tanto localmente como en CI.
 inmobiliaria_dw:
   target: dev
   outputs:

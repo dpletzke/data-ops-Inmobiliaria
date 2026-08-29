@@ -29,6 +29,15 @@ clientes as (
 
 ),
 
+-- Serie de números 0..119 para desplegar los meses de cada contrato. GENERATOR no
+-- emite columnas; el índice de fila se construye con SEQ4().
+meses as (
+
+    select row_number() over (order by seq4()) - 1 as n
+    from table(generator(rowcount => 120))
+
+),
+
 -- Un periodo (mes) causado por cada mes transcurrido entre el inicio del contrato y
 -- hoy (o su fecha de fin, si ya pasó). Cada periodo causa un canon = valor_total.
 periodos_causados as (
@@ -36,15 +45,11 @@ periodos_causados as (
     select
         c.id_contrato,
         c.valor_total as canon,
-        dateadd(
-            'month',
-            row_number() over (partition by c.id_contrato order by seq.seq) - 1,
-            date_trunc('month', c.fecha_inicio)
-        )::date as periodo
+        dateadd('month', m.n, date_trunc('month', c.fecha_inicio))::date as periodo
 
     from contratos c
-    join table(generator(rowcount => 120)) seq
-        on seq.seq <= datediff(
+    join meses m
+        on m.n < datediff(
             'month',
             date_trunc('month', c.fecha_inicio),
             date_trunc('month', least(coalesce(c.fecha_fin, current_date()), current_date()))
@@ -108,3 +113,4 @@ final as (
 )
 
 select * from final
+ 

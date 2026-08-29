@@ -1,0 +1,40 @@
+version: 2
+
+sources:
+  - name: raw_inmobiliaria
+    database: INMOBILIARIA_DW
+    schema: RAW
+    description: >
+      Capa Bronze relacional — tablas del esquema operacional (Neon/PostgreSQL) cargadas
+      sin transformar en Snowflake por el ELT del Momento 2
+      (elt_postgres_to_snowflake.py, write_pandas con overwrite).
+    tables:
+      - name: rol_empleado
+        description: Catálogo de roles del equipo interno.
+      - name: empleado
+        description: Una fila por empleado; jerarquía interna vía id_supervisor.
+      - name: propietario
+        description: Una fila por dueño de inmueble.
+      - name: cliente
+        description: Una fila por cliente que arrienda o compra.
+      - name: inmueble
+        description: Una fila por inmueble administrado por la inmobiliaria.
+      - name: contrato
+        description: Una fila por contrato de arriendo o venta.
+      - name: pago
+        description: >
+          Una fila por pago aplicado a un contrato. Varios pagos pueden compartir
+          periodo (abonos parciales dentro de un mismo mes).
+
+  - name: raw_mantenimiento
+    database: INMOBILIARIA_DW
+    schema: MANTENIMIENTO
+    description: >
+      Capa Bronze semi-estructurada — eventos JSON de solicitudes de mantenimiento que
+      llegan desde sistemas externos (portal de clientes, WhatsApp, call center) a un
+      bucket S3, leídos por Snowflake vía external stage. Sin aplanar.
+    tables:
+      - name: raw_solicitud
+        description: >
+          Una fila por evento de solicitud, columna raw_data de tipo VARIANT. El aplanado
+          a nivel de solicitud y a nivel de daño ocurre en los modelos stg_*, no aquí.

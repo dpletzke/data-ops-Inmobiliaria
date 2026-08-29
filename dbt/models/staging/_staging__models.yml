@@ -1,0 +1,185 @@
+version: 2
+
+models:
+  # -------------------------------------------------------------------------
+  # Fuente relacional (Momento 2 · ELT desde Neon)
+  # -------------------------------------------------------------------------
+  - name: stg_inmuebles
+    description: Una fila por inmueble, con tipos y nombres normalizados.
+    columns:
+      - name: id_inmueble
+        description: Llave primaria del inmueble.
+        tests:
+          - unique
+          - not_null
+      - name: id_propietario
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_propietarios')
+                field: id_propietario
+      - name: estado
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['disponible', 'arrendado', 'vendido', 'retirado']
+      - name: tipo_inmueble
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['apartamento', 'casa', 'local', 'oficina', 'bodega']
+
+  - name: stg_contratos
+    description: Una fila por contrato de arriendo o venta.
+    columns:
+      - name: id_contrato
+        description: Llave primaria del contrato.
+        tests:
+          - unique
+          - not_null
+      - name: id_inmueble
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_inmuebles')
+                field: id_inmueble
+      - name: id_cliente
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_clientes')
+                field: id_cliente
+      - name: tipo_contrato
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['arriendo', 'venta']
+      - name: estado
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['activo', 'terminado', 'anulado']
+
+  - name: stg_pagos
+    description: Una fila por pago aplicado a un contrato. Varios pagos por periodo = abonos parciales.
+    columns:
+      - name: id_pago
+        description: Llave primaria del pago.
+        tests:
+          - unique
+          - not_null
+      - name: id_contrato
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_contratos')
+                field: id_contrato
+      - name: monto
+        tests:
+          # El pago más alto plausible es varias veces un canon mensual (abono grande o
+          # pago de contado). El límite alto detecta un error de escala —centavos
+          # cargados como pesos— sin acotar pagos legítimos.
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 100000000
+      - name: estado_pago
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['aplicado', 'anulado', 'pendiente']
+
+  - name: stg_clientes
+    description: Una fila por cliente que arrienda o compra.
+    columns:
+      - name: id_cliente
+        description: Llave primaria del cliente.
+        tests:
+          - unique
+          - not_null
+      - name: email
+        tests:
+          - not_null
+
+  - name: stg_empleados
+    description: Una fila por empleado; jerarquía interna vía id_supervisor.
+    columns:
+      - name: id_empleado
+        description: Llave primaria del empleado.
+        tests:
+          - unique
+          - not_null
+      - name: id_rol
+        tests:
+          - not_null
+
+  - name: stg_propietarios
+    description: Una fila por dueño de inmueble.
+    columns:
+      - name: id_propietario
+        description: Llave primaria del propietario.
+        tests:
+          - unique
+          - not_null
+
+  # -------------------------------------------------------------------------
+  # Fuente semi-estructurada (Momento 2 · eventos JSON desde S3)
+  # -------------------------------------------------------------------------
+  - name: stg_solicitudes_mantenimiento
+    description: >
+      Una fila por evento de solicitud de mantenimiento, aplanado desde el JSON crudo.
+      La agregación por inmueble ocurre en fct_mantenimiento_por_inmueble.
+    columns:
+      - name: event_id
+        description: Identificador del evento en el sistema de origen.
+        tests:
+          - unique
+          - not_null
+      - name: id_inmueble
+        description: Inmueble al que se refiere la solicitud (referencia lógica al catálogo relacional).
+        tests:
+          - not_null
+      - name: prioridad
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['baja', 'media', 'alta', 'critica']
+      - name: estado_fuente
+        tests:
+          - not_null
+      - name: email_reportante
+        tests:
+          # El reportante siempre llega con correo en la fuente; un formato inválido
+          # apunta a un evento corrupto que no debería alimentar los conteos de Gold.
+          - dbt_expectations.expect_column_values_to_match_regex:
+              arguments:
+                regex: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+              config:
+                where: "email_reportante is not null"
+
+  - name: stg_danios_mantenimiento
+    description: >
+      Un daño por fila, expandido desde el arreglo danios de cada evento. Varias filas
+      comparten event_id.
+    columns:
+      - name: event_id
+        tests:
+          - not_null
+      - name: id_inmueble
+        tests:
+          - not_null
+      - name: severidad
+        description: Severidad del daño en escala 1-5 definida por la fuente.
+        tests:
+          # Fuera de 1-5 significa un evento corrupto en el JSON: hay que revisarlo antes
+          # de confiar en severidad_maxima / severidad_promedio de la capa Gold.
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 1
+                max_value: 5
+              config:
+                where: "severidad is not null"

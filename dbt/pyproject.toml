@@ -1,0 +1,9 @@
+[project]
+name = "data-ops-inmobiliaria-dbt"
+version = "0.1.0"
+description = "Proyecto dbt — Momento 3: modelado Medallón sobre Snowflake para la inmobiliaria"
+requires-python = ">=3.11"
+dependencies = [
+    "dbt-core>=1.11,<2.0",
+    "dbt-snowflake>=1.11,<2.0",
+]

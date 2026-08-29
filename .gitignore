@@ -13,3 +13,11 @@ Thumbs.db
 # Logs y temporales
 *.log
 tmp/
+
+# dbt — se reconstruyen en cada entorno con `uv sync` y `dbt deps`.
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.venv/
+# profiles.yml SÍ se versiona: no contiene credenciales (todo sale de env_var())
+# y GitHub Actions lo necesita para correr `dbt build`.

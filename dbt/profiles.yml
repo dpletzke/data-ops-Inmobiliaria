@@ -1,0 +1,22 @@
+# Perfil de conexión de dbt. Todos los valores se leen de variables de entorno con
+# env_var() — NO hay ninguna credencial en texto plano en este archivo, por eso es
+# seguro versionarlo (lo necesita GitHub Actions para correr `dbt build`).
+#
+# Localmente:
+#   set -a && source .env && set +a
+#   uv run dbt deps  --profiles-dir .
+#   uv run dbt build --profiles-dir .
+inmobiliaria_dw:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'INMOBILIARIA_DATAOPS_LOADER') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'WH_INMOBILIARIA') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE', 'INMOBILIARIA_DW') }}"
+      schema: "{{ env_var('SNOWFLAKE_SCHEMA', 'CORE') }}"
+      threads: 4
+      client_session_keep_alive: false

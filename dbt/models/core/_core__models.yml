@@ -1,0 +1,131 @@
+version: 2
+
+models:
+  - name: dim_inmueble
+    description: >
+      Dimensión de inmueble. Grano: una fila por inmueble administrado por la
+      inmobiliaria. Reúne los atributos físicos del inmueble con el propietario dueño y
+      el empleado que lo captó, para que los modelos de hechos no repitan esos joins.
+    columns:
+      - name: id_inmueble
+        description: Llave primaria del inmueble.
+        tests:
+          - unique
+          - not_null
+      - name: direccion
+        description: Dirección única del inmueble.
+        tests:
+          - not_null
+      - name: estado_inmueble
+        description: Estado comercial del inmueble.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['disponible', 'arrendado', 'vendido', 'retirado']
+      - name: id_propietario
+        description: Propietario dueño del inmueble.
+      - name: nombre_propietario
+        description: Nombre del propietario, para reportes en lenguaje de negocio.
+      - name: id_empleado_captador
+        description: Empleado que incorporó el inmueble al portafolio.
+
+  - name: fct_cartera_por_contrato
+    description: >
+      Estado de cartera por contrato de arriendo activo. Grano: una fila por contrato de
+      arriendo activo. Responde cuánto se ha causado (canon x meses transcurridos),
+      cuánto se ha recaudado con pagos aplicados, el saldo pendiente y si el contrato
+      está en mora. Es la versión modelada en dbt de la vista operacional
+      vw_estado_cartera.
+    columns:
+      - name: id_contrato
+        description: Llave primaria del contrato.
+        tests:
+          - unique
+          - not_null
+      - name: id_inmueble
+        description: Inmueble objeto del contrato.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_inmueble')
+                field: id_inmueble
+      - name: total_causado
+        description: Suma de los cánones mensuales causados desde el inicio del contrato.
+        tests:
+          - not_null
+      - name: total_recaudado
+        description: Suma de los pagos aplicados imputados a periodos causados del contrato.
+        tests:
+          - not_null
+      - name: saldo_pendiente
+        description: total_causado menos total_recaudado. Positivo = el cliente debe dinero.
+        tests:
+          # Un saldo mayor a dos años de canon indica doble contabilización de periodos
+          # o un canon mal cargado: imposible en la operación real, es un error de datos
+          # que debe frenar el build antes de que un reporte de cartera lo publique.
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: -100000000
+                max_value: 500000000
+      - name: en_mora
+        description: Verdadero si al menos un periodo causado quedó por debajo del canon.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+
+  - name: fct_mantenimiento_por_inmueble
+    description: >
+      Carga de mantenimiento por inmueble, cruzando los eventos JSON de mantenimiento
+      (fuente semi-estructurada, Momento 2) con el inventario y los contratos
+      relacionales (fuente relacional, Momento 2). Grano: una fila por inmueble del
+      catálogo. Sirve para priorizar intervenciones: inmuebles con contrato activo,
+      solicitudes abiertas y daños severos.
+    columns:
+      - name: id_inmueble
+        description: Llave primaria del inmueble.
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_inmueble')
+                field: id_inmueble
+      - name: num_solicitudes
+        description: Total de solicitudes de mantenimiento registradas para el inmueble.
+        tests:
+          - not_null
+      - name: num_solicitudes_abiertas
+        description: Solicitudes en estado 'abierta' en la fuente.
+        tests:
+          - not_null
+      - name: num_danios
+        description: Total de daños reportados (arreglo danios aplanado) para el inmueble.
+        tests:
+          - not_null
+      - name: severidad_maxima
+        description: Severidad más alta entre los daños del inmueble, escala 1-5.
+        tests:
+          # La fuente define severidad en escala 1-5. Un máximo fuera de rango significa
+          # un evento corrupto que contamina la priorización: debe frenar el build.
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 1
+                max_value: 5
+              config:
+                where: "severidad_maxima is not null"
+      - name: tiene_contrato_activo
+        description: Verdadero si el inmueble tiene al menos un contrato en estado 'activo'.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: requiere_atencion_prioritaria
+        description: >
+          Verdadero cuando el inmueble tiene contrato activo, solicitudes abiertas y un
+          daño de severidad >= 4. Es la lista corta para el equipo de mantenimiento.
+        tests:
+          - not_null

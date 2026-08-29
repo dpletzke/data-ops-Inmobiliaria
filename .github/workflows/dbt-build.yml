@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# Transformación con dbt vía GitHub Actions — Momento 3
+#
+# En cada ejecución: instala el entorno del proyecto dbt con uv, resuelve los
+# paquetes (dbt deps) y corre `dbt build` — materializa todos los modelos y
+# ejecuta todos los tests en un solo comando. La programación y la ejecución
+# quedan versionadas aquí, no en un servicio externo.
+#
+# `dbt build` respeta el DAG: si un test de un modelo Silver falla, los modelos
+# Gold que dependen de él ni se intentan — el workflow falla en rojo y visible.
+#
+# Secretos requeridos (Settings -> Secrets and variables -> Actions):
+#   SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_PASSWORD, SNOWFLAKE_ROLE,
+#   SNOWFLAKE_WAREHOUSE, SNOWFLAKE_DATABASE, SNOWFLAKE_SCHEMA
+# ---------------------------------------------------------------------------
+
+name: dbt build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dbt/**"
+      - ".github/workflows/dbt-build.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "dbt/**"
+      - ".github/workflows/dbt-build.yml"
+  workflow_dispatch:
+  # El ELT relacional y la ingesta JSON alimentan la capa RAW antes de esta hora.
+  schedule:
+    - cron: "0 7 * * *"
+
+# Dos corridas simultáneas contra el mismo warehouse podrían pisarse la
+# materialización de un modelo a mitad de escritura. Se serializan.
+concurrency:
+  group: dbt-produccion
+  cancel-in-progress: false
+
+env:
+  DBT_PROJECT_DIR: dbt
+
+jobs:
+  build:
+    name: dbt build sobre Snowflake
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      # uv resuelve contra el lockfile del proyecto (uv.lock), así que la versión
+      # de dbt en CI es exactamente la del último `uv sync` local.
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sincronizar el entorno del proyecto dbt
+        working-directory: ${{ env.DBT_PROJECT_DIR }}
+        run: uv sync
+
+      - name: dbt deps
+        working-directory: ${{ env.DBT_PROJECT_DIR }}
+        run: uv run dbt deps --profiles-dir .
+
+      - name: dbt build
+        working-directory: ${{ env.DBT_PROJECT_DIR }}
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+        run: uv run dbt build --profiles-dir . --target dev
+
+      - name: Resumen del run
+        if: always()
+        run: |
+          {
+            echo "## dbt build — resultado"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|---|---|"
+            echo "| Proyecto | \`${DBT_PROJECT_DIR}\` |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Disparado por | \`${{ github.event_name }}\` |"
+            echo "| Estado | \`${{ job.status }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

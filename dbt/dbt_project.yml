@@ -1,0 +1,36 @@
+name: "inmobiliaria_dw"
+version: "1.0.0"
+config-version: 2
+
+# Debe coincidir con la clave de nivel superior en profiles.yml — es cómo dbt sabe con
+# cuál conexión de warehouse compilar este proyecto.
+profile: "inmobiliaria_dw"
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# ---------------------------------------------------------------------------
+# Arquitectura Medallón: la carpeta declara la capa, la capa declara la materialización.
+# ---------------------------------------------------------------------------
+models:
+  inmobiliaria_dw:
+    staging:
+      # Silver: cast y rename únicamente. Se materializa como VIEW porque cada modelo es
+      # una relectura barata de la fuente cruda — no hay agregación que valga la pena
+      # persistir en disco todavía.
+      +materialized: view
+      +schema: staging
+    core:
+      # Gold: modelos listos para consumo analítico, con joins y agregaciones. Se
+      # materializan como TABLE para que un dashboard o un analista no vuelva a pagar
+      # el costo de los joins en cada consulta.
+      +materialized: table
+      +schema: core

@@ -39,7 +39,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DBT_PROJECT_DIR: dbt
+  PROJECT_DIR: dbt
 
 jobs:
   build:
@@ -59,15 +59,15 @@ jobs:
           enable-cache: true
 
       - name: Sincronizar el entorno del proyecto dbt
-        working-directory: ${{ env.DBT_PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: uv sync
 
       - name: dbt deps
-        working-directory: ${{ env.DBT_PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: uv run dbt deps --profiles-dir .
 
       - name: dbt build
-        working-directory: ${{ env.DBT_PROJECT_DIR }}
+        working-directory: ${{ env.PROJECT_DIR }}
         env:
           SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
           SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
@@ -86,7 +86,7 @@ jobs:
             echo ""
             echo "| Campo | Valor |"
             echo "|---|---|"
-            echo "| Proyecto | \`${DBT_PROJECT_DIR}\` |"
+            echo "| Proyecto | \`${PROJECT_DIR}\` |"
             echo "| Commit | \`${{ github.sha }}\` |"
             echo "| Disparado por | \`${{ github.event_name }}\` |"
             echo "| Estado | \`${{ job.status }}\` |"

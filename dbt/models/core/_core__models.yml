@@ -21,7 +21,7 @@ models:
         tests:
           - accepted_values:
               arguments:
-                values: ['disponible', 'arrendado', 'vendido', 'retirado']
+                values: ['disponible', 'vendido', 'retirado']
       - name: id_propietario
         description: Propietario dueño del inmueble.
       - name: nombre_propietario

@@ -20,6 +20,8 @@ descripción del dominio y el diagrama entidad-relación.
 - **Snowflake** — warehouse `WH_INMOBILIARIA`, base `INMOBILIARIA_DW`, con los
   schemas `RAW` (carga relacional desde Neon) y `MANTENIMIENTO` (eventos JSON).
 - **Python + uv** — el script de ELT ([`elt_postgres_to_snowflake.py`](elt_postgres_to_snowflake.py)).
+- **dbt** — transforma RAW en modelos Silver/Gold dentro de Snowflake, corrido
+  por GitHub Actions ([`dbt/`](dbt/)).
 
 ## Estructura
 
@@ -28,6 +30,7 @@ sql_migrations/            Migraciones Flyway (V__ versionadas, R__ repetibles)
 snowflake/                 Scripts SQL del warehouse, en orden de ejecución
 elt_postgres_to_snowflake.py   ELT Neon -> Snowflake (schema RAW)
 external_data/             JSON de solicitudes de mantenimiento (fuente para S3)
+dbt/                       Proyecto dbt: modelos staging (Silver) y core (Gold)
 docs/                      Documento de dominio y evidencias de runs en Actions
 flyway.conf.example        Plantilla de configuración de Flyway
 .env.example               Plantilla de credenciales de Neon y Snowflake
@@ -144,6 +147,83 @@ engineer ve el dato crudo, el analista ve el contacto parcialmente oculto
 
 ---
 
+# Capa de modelado — dbt (Momento 3)
+Proyecto dbt que transforma los datos crudos del warehouse en modelos listos para
+consumo analítico, bajo arquitectura Medallón, con tests de calidad y automatización
+por GitHub Actions.
+## Arquitectura
+```
+Fuentes crudas (Bronze)                Silver (staging/)              Gold (core/)
+──────────────────────                 ────────────────              ────────────
+INMOBILIARIA_DW.RAW          ─┐        stg_inmuebles      ─┐
+  (ELT relacional, Momento 2) │        stg_contratos       │         dim_inmueble
+                              ├──────► stg_pagos           ├───────► fct_cartera_por_contrato
+INMOBILIARIA_DW.MANTENIMIENTO │        stg_clientes        │         fct_mantenimiento_por_inmueble
+  (eventos JSON, Momento 2)  ─┘        stg_empleados       │           (cruza los dos orígenes)
+                                       stg_propietarios    │
+                                       stg_solicitudes_... │
+                                       stg_danios_...     ─┘
+```
+- **staging/** (Silver) — una view por fuente: solo `cast` y `rename`, usando
+  `source()`. Los modelos sobre `raw_solicitud` aplanan el VARIANT (uno con
+  `LATERAL FLATTEN` sobre `danios`).
+- **core/** (Gold) — tables, usando `ref()` exclusivamente. Nunca consultan `source()`.
+### Preguntas de negocio que responde la capa Gold
+| Modelo | Pregunta | Grano |
+|---|---|---|
+| `fct_cartera_por_contrato` | ¿Cuánto se ha causado, recaudado y qué saldo/mora tiene cada contrato de arriendo activo? | 1 fila / contrato |
+| `fct_mantenimiento_por_inmueble` | ¿Qué carga de mantenimiento acumula cada inmueble y cuáles requieren atención prioritaria? | 1 fila / inmueble |
+| `dim_inmueble` | Dimensión de apoyo: inmueble + propietario + captador | 1 fila / inmueble |
+`fct_mantenimiento_por_inmueble` es el modelo que **cruza los dos orígenes**: eventos
+JSON de mantenimiento (semi-estructurado) contra el inventario y los contratos
+relacionales, por `id_inmueble`.
+## Preparar Snowflake (una vez)
+Ejecutar en un Worksheet con rol `ACCOUNTADMIN`:
+```
+snowflake/05_setup_dbt.sql   -- crea schemas STAGING y CORE, otorga grants al rol de dbt
+```
+## Correr localmente
+```bash
+cd dbt
+cp .env.example .env          # completar credenciales de Snowflake
+set -a && source .env && set +a
+uv sync
+uv run dbt deps    --profiles-dir .
+uv run dbt debug   --profiles-dir .   # "All checks passed"
+uv run dbt build   --profiles-dir .   # run + test de todos los modelos
+uv run dbt docs generate --profiles-dir .
+uv run dbt docs serve    --profiles-dir .   # lineage graph en el navegador
+```
+`dbt build` = `dbt run` + `dbt test` respetando el DAG. Si un test de Silver falla,
+los modelos Gold que dependen de él no se construyen.
+## Tests de calidad
+- **Genéricos** (`unique`, `not_null`, `accepted_values`, `relationships`) sobre las
+  llaves y relaciones de todos los modelos Silver y Gold.
+- **`dbt-expectations`** (paquete `metaplane/dbt_expectations`), cada uno con su
+  justificación de negocio comentada en el `.yml`:
+  - `stg_pagos.monto` entre 0 y 100 M — detecta errores de escala (centavos vs pesos).
+  - `stg_danios_mantenimiento.severidad` entre 1 y 5 — escala definida por la fuente.
+  - `stg_solicitudes_mantenimiento.email_reportante` con formato de correo válido.
+  - `fct_cartera_por_contrato.saldo_pendiente` en rango razonable — detecta doble
+    contabilización de periodos.
+  - `fct_mantenimiento_por_inmueble.severidad_maxima` entre 1 y 5.
+## Automatización
+[`.github/workflows/dbt-build.yml`](../.github/workflows/dbt-build.yml) corre
+`uv sync` → `dbt deps` → `dbt build` en cada push a `main` que toque `dbt/**`, en
+`workflow_dispatch` y en un cron diario (07:00 UTC).
+Secretos requeridos en `Settings → Secrets and variables → Actions`:
+`SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD`, `SNOWFLAKE_ROLE`,
+`SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`.
+`profiles.yml` está versionado a propósito: no contiene credenciales (todos los
+valores se resuelven con `env_var()`), y el workflow lo necesita.
+## Evidencias
+En [`../docs/evidencias/`](../docs/evidencias/):
+- `dbt_build_local.txt` — salida de `dbt build` local.
+- `lineage_graph.png` — captura del lineage de `dbt docs`.
+- `gha_dbt_build_run.md` — enlace a la corrida exitosa de GitHub Actions.
+
+---
+
 ## Secretos y credenciales
 
 **GitHub Actions** — en `Settings → Secrets and variables → Actions`:
@@ -152,11 +232,14 @@ engineer ve el dato crudo, el analista ve el contacto parcialmente oculto
 |---|---|
 | `NEON_DEV_DATABASE_URL` | Connection string de la branch `dev` de Neon |
 | `NEON_MAIN_DATABASE_URL` | Connection string de la branch `main` de Neon |
+| `SNOWFLAKE_ACCOUNT` / `SNOWFLAKE_USER` / `SNOWFLAKE_PASSWORD` | Credenciales de Snowflake para dbt |
+| `SNOWFLAKE_ROLE` / `SNOWFLAKE_WAREHOUSE` / `SNOWFLAKE_DATABASE` / `SNOWFLAKE_SCHEMA` | Contexto de conexión de dbt |
 
-Ambos en el formato que entrega Neon Console:
+Las dos de Neon en el formato que entrega Neon Console:
 `postgresql://usuario:clave@host.neon.tech/neondb?sslmode=require`, usando el
 endpoint directo (sin `-pooler`).
 
 **Local** — `flyway.conf` (Flyway) y `.env` (ELT). Los dos están en
 `.gitignore`; versionadas solo están las plantillas `flyway.conf.example` y
-`.env.example`.
+`.env.example`. `dbt/profiles.yml` sí está versionado — no tiene credenciales,
+todo lo resuelve con `env_var()` en tiempo de ejecución.
